@@ -1,0 +1,19 @@
+# Workspace / repo hygiene — keep the repository lean. GitHub is the source of truth.
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local
+
+# Never commit real datasets or exports. Tests use small synthetic fixtures.
+*.csv
+*.parquet
+*.sqlite
+data/
+datasets/

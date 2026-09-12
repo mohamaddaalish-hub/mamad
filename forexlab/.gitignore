@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.tsbuildinfo
+.vite/
+.DS_Store
+*.log
+
+# Never commit real user market/news datasets. Tests use small synthetic fixtures only.
+data/
+*.csv
+!tests/fixtures/*.csv
