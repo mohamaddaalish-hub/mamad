@@ -9,12 +9,17 @@ import { RightPanel } from './RightPanel.tsx';
 import { appStore, restoreUiState, useApp } from '../../core/app/state.ts';
 import { datasetRegistry } from '../../core/data/datasets.ts';
 import { installGlobalShortcuts } from '../../core/app/shortcutsShell.ts';
+import { closeDialog, useDialog } from '../../core/app/dialogs.ts';
+import { ImportDialog } from '../panels/ImportDialog.tsx';
+import { GoToDateDialog } from '../panels/GoToDate.tsx';
+import { ShortcutsDialog } from '../panels/ShortcutsDialog.tsx';
 
 export function App(): React.ReactElement {
   const leftOpen = useApp((s) => s.leftOpen);
   const rightOpen = useApp((s) => s.rightOpen);
   const fullscreen = useApp((s) => s.fullscreen);
   const theme = useApp((s) => s.chart.theme);
+  const dialog = useDialog((s) => s.open);
 
   useEffect(() => {
     void (async () => {
@@ -37,7 +42,7 @@ export function App(): React.ReactElement {
       <Topbar />
       <div
         className={`app-body${showLeft ? '' : ' no-left'}${showRight ? '' : ' no-right'}`}
-        style={{ ['--right-w' as string]: showRight ? '332px' : '0px' }}
+        style={{ '--right-w': showRight ? '332px' : '0px' } as React.CSSProperties}
       >
         {showLeft ? <LeftRail /> : <div />}
         <main className="chart-area">
@@ -46,6 +51,9 @@ export function App(): React.ReactElement {
         {showRight ? <RightPanel /> : <div />}
       </div>
       <StatusBar />
+      {dialog === 'goto' ? <GoToDateDialog onClose={closeDialog} /> : null}
+      {dialog === 'shortcuts' ? <ShortcutsDialog /> : null}
+      {dialog === 'import' ? <ImportDialog /> : null}
     </div>
   );
 }

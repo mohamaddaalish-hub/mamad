@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { Btn, Chip, Icon, Sel } from '../kit.tsx';
 import { TIMEFRAMES, type TimeframeId } from '../../core/time/timeframes.ts';
 import { CHART_MODES, PRESETS, PRESET_ORDER, type ChartMode, type ThemeName } from '../../core/chart/style.ts';
+import { openDialog } from '../../core/app/dialogs.ts';
+import { availabilityFor } from '../../core/time/timeframeOptions.ts';
+import { datasetRegistry } from '../../core/data/datasets.ts';
 import {
   autoscale,
   fitAll,
@@ -32,6 +35,8 @@ export function Topbar(): React.ReactElement {
   const loading = useApp((s) => s.loading);
   const fixture = useApp((s) => s.fixtureMode);
   const [menu, setMenu] = useState(false);
+  const native = datasetId ? datasetRegistry.get(datasetId)?.tf : undefined;
+  const availability = availabilityFor(native);
 
   return (
     <header className="topbar">
@@ -55,17 +60,22 @@ export function Topbar(): React.ReactElement {
       </div>
 
       <div className="group" style={{ gap: 1 }}>
-        {TIMEFRAMES.map((def) => (
-          <Btn
-            key={def.id}
-            size="xs"
-            active={tf === def.id}
-            tip={`${def.label}${datasetId ? '' : ' — no dataset'}`}
-            onClick={() => void setTimeframe(def.id as TimeframeId)}
-          >
-            {def.id}
-          </Btn>
-        ))}
+        {TIMEFRAMES.map((def) => {
+          const avail = availability.get(def.id);
+          const blocked = datasetId !== null && avail !== undefined && !avail.derived;
+          return (
+            <Btn
+              key={def.id}
+              size="xs"
+              active={tf === def.id}
+              disabled={blocked}
+              tip={avail ? `${def.label} — ${avail.reason}` : def.label}
+              onClick={() => void setTimeframe(def.id as TimeframeId)}
+            >
+              {def.id}
+            </Btn>
+          );
+        })}
       </div>
 
       <div className="group">
@@ -74,6 +84,12 @@ export function Topbar(): React.ReactElement {
         <Btn icon="fit" tip="Fit all bars" onClick={fitAll} />
         <Btn icon="target" tip="Auto price scale (double-click axis)" onClick={autoscale} />
         <Btn icon="restart" tip="Reset view" onClick={resetView} />
+      </div>
+
+      <div className="group">
+        <Btn icon="import" tip="Import a historical CSV (local only)" onClick={() => openDialog('import')}>
+          Import
+        </Btn>
       </div>
 
       <div className="spacer" />
@@ -142,6 +158,10 @@ export function Topbar(): React.ReactElement {
           options={COMMON_TIMEZONES.map((z) => ({ value: z.id, label: z.short }))}
           ariaLabel="Chart timezone"
         />
+        <Btn icon="clock" tip="Go to date and time (G)" onClick={() => openDialog('goto')} />
+        <Btn tip="Keyboard shortcuts" onClick={() => openDialog('shortcuts')}>
+          ?
+        </Btn>
         <Sel
           value={theme}
           onChange={(v) => updateChartSettings({ theme: v as ThemeName })}

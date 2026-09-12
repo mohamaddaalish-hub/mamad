@@ -12,6 +12,7 @@ import { datasetRegistry } from '../../core/data/datasets.ts';
 import { deleteDataset, openDataset } from '../../core/app/actions.ts';
 import { formatBytes, formatInt } from '../../core/util/format.ts';
 import { formatDate } from '../../core/time/tz.ts';
+import { openDialog } from '../../core/app/dialogs.ts';
 
 export function LeftRail(): React.ReactElement {
   const [, force] = useState(0);
@@ -51,8 +52,11 @@ export function LeftRail(): React.ReactElement {
     <aside className="panel panel-left">
       <div className="panel-header">
         <span className="panel-title">Data library</span>
-        <span className="right dim" style={{ fontSize: 10 }}>
-          local
+        <span className="right row" style={{ gap: 2 }}>
+          <span className="dim" style={{ fontSize: 10 }}>
+            local
+          </span>
+          <Btn size="xs" icon="import" tip="Import a historical CSV — parsed in a worker, stored in IndexedDB" onClick={() => openDialog('import')} />
         </span>
       </div>
       <div className="panel-section" style={{ paddingBottom: 6 }}>
@@ -79,6 +83,11 @@ export function LeftRail(): React.ReactElement {
             No imported datasets yet.
             <br />
             Import a historical OHLC CSV (1-minute to daily) to start.
+            <div style={{ marginTop: 8 }}>
+              <Btn size="xs" variant="primary" icon="import" onClick={() => openDialog('import')}>
+                Import CSV
+              </Btn>
+            </div>
           </Empty>
         ) : (
           <div className="list">

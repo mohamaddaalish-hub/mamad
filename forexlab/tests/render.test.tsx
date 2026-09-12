@@ -91,6 +91,7 @@ describe('workstation shell', () => {
         timezone: 'UTC',
         totalLines: cols.len,
         dataRows: cols.len,
+        commentLines: 0,
         accepted: cols.len,
         rejected: 0,
         ohlcViolations: 0,
@@ -184,5 +185,82 @@ describe('workstation shell', () => {
     expect(new Pyramid(series.cols).rowCount).toBe(series.total);
     const base = datasetRegistry.cachedView(appStore.get().datasetId!, '5m', 'UTC');
     expect(base?.series.count).toBeGreaterThan(series.count);
+  });
+});
+
+describe('navigation and import dialogs', () => {
+  it('opens the calendar, marks days that contain bars and jumps to one', async () => {
+    await mount();
+    await act(async () => {
+      await loadFixture(22_000);
+    });
+    await tick();
+    const dialogs = await import('../src/core/app/dialogs.ts');
+    await act(async () => {
+      dialogs.openDialog('goto');
+    });
+    await tick();
+    const cells = Array.from(document.querySelectorAll<HTMLButtonElement>('.cal-cell.has-data'));
+    expect(cells.length).toBeGreaterThan(10); // ~15 calendar days of 1-minute fixture data
+    expect(document.querySelectorAll('.cal-cell:not(.has-data):not(.blank)').length).toBeGreaterThan(0);
+    const rightBefore = actions.chartHost.engine!.view.rightIndex;
+    await act(async () => {
+      cells[Math.floor(cells.length / 2)].click();
+    });
+    await tick();
+    expect(actions.chartHost.engine!.view.rightIndex).not.toBe(rightBefore);
+    expect(dialogs.dialogStore.get().open).toBeNull();
+    await act(async () => {
+      dialogs.closeDialog();
+    });
+  });
+
+  it('accepts a typed date through the shortcut G without fabricating a bar', async () => {
+    await mount();
+    await act(async () => {
+      await loadFixture(1500);
+    });
+    await tick();
+    const { goToDateTime, datasetBounds } = await import('../src/core/app/actions.ts');
+    const bounds = datasetBounds()!;
+    const inside = new Date(bounds[0] + 30 * 3_600_000).toISOString().slice(0, 16).replace('T', ' ');
+    let ok = false;
+    await act(async () => {
+      ok = goToDateTime(inside);
+    });
+    expect(ok).toBe(true);
+    // Before the first bar: nothing to land on, so it refuses instead of guessing.
+    const beforeStart = new Date(bounds[0] - 400 * 86_400_000).toISOString().slice(0, 10);
+    await act(async () => {
+      ok = goToDateTime(beforeStart);
+    });
+    expect(ok).toBe(false);
+    // After the last bar: clamps onto the newest real bar, never beyond it.
+    const afterEnd = new Date(bounds[1] + 400 * 86_400_000).toISOString().slice(0, 10);
+    await act(async () => {
+      ok = goToDateTime(afterEnd);
+    });
+    expect(ok).toBe(true);
+    const series = actions.chartHost.engine!.getSeries()!;
+    // The visible window is clamped to real bars, so nothing past the end is shown.
+    expect(actions.chartHost.engine!.getVisibleRange().to).toBe(series.count);
+    expect(appStore.get().diagnostics.some((d) => d.level === 'error' && /Could not parse/.test(d.text))).toBe(false);
+    await act(async () => {
+      ok = goToDateTime('not a date');
+    });
+    expect(ok).toBe(false);
+    expect(appStore.get().diagnostics.some((d) => d.level === 'error' && /Could not parse/.test(d.text))).toBe(true);
+  });
+
+  it('documents every shortcut the shell installs', async () => {
+    const { SHORTCUTS } = await import('../src/core/app/dialogs.ts');
+    const { TIMEFRAME_OPTIONS, availabilityFor } = await import('../src/core/time/timeframeOptions.ts');
+    expect(TIMEFRAME_OPTIONS).toHaveLength(14);
+    const avail = availabilityFor('5m');
+    expect(avail.get('1m')!.derived).toBe(false);
+    expect(avail.get('5m')!.native).toBe(true);
+    expect(avail.get('1D')!.derived).toBe(true);
+    expect(avail.get('1m')!.reason).toMatch(/fabricat/i);
+    expect(SHORTCUTS.some((s) => s.keys === 'G')).toBe(true);
   });
 });

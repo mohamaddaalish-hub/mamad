@@ -119,6 +119,19 @@ export function isKnownTimeZone(tz: string): boolean {
 }
 
 /** floor(t) in the given zone, expressed back as an absolute instant. */
+/** Absolute instant of a wall-clock date/time inside `tz`. */
+export function zonedInstant(
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+  tz: string = UTC,
+): number {
+  return toUtcFromZoned(year, month, day, hour, minute, second, tz);
+}
+
 export function floorToDay(t: number, tz: string): number {
   const p = zonedParts(t, tz);
   return toUtcFromZoned(p.year, p.month, p.day, 0, 0, 0, tz);

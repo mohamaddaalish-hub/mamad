@@ -11,6 +11,8 @@ import { appStore, useApp } from '../../core/app/state.ts';
 import { viewStore } from '../../core/app/viewState.ts';
 import { bindEngine, refreshSeries } from '../../core/app/actions.ts';
 import { overlayRegistry } from '../../core/app/overlays.ts';
+import { ChartNav } from './ChartNav.tsx';
+import { quickImport } from '../../core/csv/importFlow.ts';
 
 export function ChartSurface({ id = 'main' }: { id?: string }): React.ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -65,8 +67,22 @@ export function ChartSurface({ id = 'main' }: { id?: string }): React.ReactEleme
   void layers;
 
   return (
-    <div className="chart-surface" ref={hostRef} data-surface={id}>
+    <div
+      className="chart-surface"
+      ref={hostRef}
+      data-surface={id}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types?.includes('Files')) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        const f = e.dataTransfer.files?.[0];
+        if (!f) return;
+        e.preventDefault();
+        void quickImport(f);
+      }}
+    >
       <canvas ref={canvasRef} />
+      {id === 'main' ? <ChartNav /> : null}
     </div>
   );
 }
