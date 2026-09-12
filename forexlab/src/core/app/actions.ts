@@ -270,6 +270,7 @@ export async function loadFixture(bars = 12_000): Promise<void> {
     timezone: 'UTC',
     totalLines: cols.len,
     dataRows: cols.len,
+    commentLines: 0,
     accepted: cols.len,
     rejected: 0,
     ohlcViolations: 0,

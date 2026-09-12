@@ -40,6 +40,8 @@ export interface ImportReport {
   timezone: string;
   totalLines: number;
   dataRows: number;
+  /** Lines that were comments/banners and deliberately ignored. */
+  commentLines: number;
   accepted: number;
   rejected: number;
   ohlcViolations: number;
@@ -153,6 +155,7 @@ export class MarketCsvBuilder {
   private header: string[] | null = null;
   private totalLines = 0;
   private dataRows = 0;
+  private commentLines = 0;
   private rejected = 0;
   private ohlcViolations = 0;
   private unordered = 0;
@@ -192,6 +195,11 @@ export class MarketCsvBuilder {
   /** Feed one raw record. A leading header row is consumed automatically. */
   feed(cells: string[]): void {
     this.totalLines++;
+    // Comment/banner lines (common in vendor exports) are skipped, never rejected.
+    if ((cells[0] ?? '').trim().startsWith('#')) {
+      this.commentLines++;
+      return;
+    }
     if (this.header === null) {
       const looksHeader =
         cells.some((c) => !/^[+-]?[\d.,%]+$/.test((c ?? '').trim())) ||
@@ -280,6 +288,7 @@ export class MarketCsvBuilder {
       timezone: this.tz,
       totalLines: this.totalLines,
       dataRows: this.dataRows,
+      commentLines: this.commentLines,
       accepted: 0,
       rejected: this.rejected,
       ohlcViolations: this.ohlcViolations,
@@ -304,6 +313,9 @@ export class MarketCsvBuilder {
       columnMap: { ...(this.map ?? {}) },
       header: this.header ?? [],
     };
+    if (this.commentLines > 0) {
+      notes.push(`skipped ${this.commentLines.toLocaleString()} comment line(s) starting with #`);
+    }
     if (n === 0) {
       notes.push('no usable rows found');
       return { cols: emptyColumns(0), report, finerThanSource: false };

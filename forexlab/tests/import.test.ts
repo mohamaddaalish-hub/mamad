@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { CandleSeries, aggregateSeries } from '../src/core/data/series.ts';
 import { MarketCsvBuilder, scanGaps, isMarketClosure } from '../src/core/csv/market.ts';
 import { parseCsv } from '../src/core/csv/parser.ts';
 import { probeText } from '../src/core/csv/importer.ts';
@@ -264,5 +266,44 @@ describe('market import: end-to-end through the scanner', () => {
     expect(probeText('', 'x.csv').error).toBe('empty file');
     const junk = probeText('a,b,c\nx,y,z', 'junk.csv');
     expect(junk.detected.notes.join(' ')).toMatch(/could not locate/);
+  });
+});
+
+describe('committed synthetic fixture (end to end)', () => {
+  it('imports tests/fixtures/sample-200.csv with honest accounting', () => {
+    const text = readFileSync(new URL('./fixtures/sample-200.csv', import.meta.url), 'utf8');
+    const { cols, report } = importText(text, { tz: 'UTC', symbol: 'EURUSD', tf: '5m' });
+    expect(report.rejected).toBe(0);
+    expect(report.accepted).toBe(200);
+    expect(report.dataRows).toBe(200);
+    expect(report.symbol).toBe('EURUSD');
+    expect(report.timeframe).toBe('5m');
+    expect(report.duplicates).toBe(0);
+    expect(report.gapCount).toBe(0);
+    expect(report.missingBars).toBe(0);
+    expect(report.dateFormat).toMatch(/ISO-8601/);
+    expect(report.timeFormat).toMatch(/HH:mm/);
+    // Comment and header lines are recognised, not counted as data rows.
+    expect(report.totalLines).toBe(text.trimEnd().split('\n').length);
+    expect(report.commentLines).toBe(2);
+    expect(report.header?.[0]).toBe('Date');
+    for (let i = 0; i < 200; i++) {
+      expect(cols.h[i]).toBeGreaterThanOrEqual(Math.max(cols.o[i], cols.c[i]));
+      expect(cols.l[i]).toBeLessThanOrEqual(Math.min(cols.o[i], cols.c[i]));
+    }
+    expect(cols.t[1] - cols.t[0]).toBe(300_000);
+    expect(cols.v[0]).toBeGreaterThan(0);
+  });
+
+  it('folds the same fixture to 1H without inventing buckets', () => {
+    const text = readFileSync(new URL('./fixtures/sample-200.csv', import.meta.url), 'utf8');
+    const { cols } = importText(text, { tz: 'UTC', symbol: 'EURUSD', tf: '5m' });
+    const base = new CandleSeries({ symbol: 'EURUSD', tf: '5m', tz: 'UTC', cols, hasVolume: true });
+    const h1 = aggregateSeries(base, '1H', 'UTC');
+    expect(h1.count).toBe(Math.ceil(200 * 5 / 60));
+    // 200 five-minute bars from 00:00 = 16h40m → 17 hourly buckets, last one partial.
+    expect(h1.time(0)).toBe(Date.UTC(2024, 0, 2, 0, 0));
+    expect(h1.cols.n[h1.count - 1]).toBeGreaterThan(0);
+    expect(h1.cols.n[h1.count - 1]).toBeLessThanOrEqual(12);
   });
 });
