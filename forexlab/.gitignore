@@ -7,7 +7,7 @@ coverage/
 .DS_Store
 *.log
 
-# Never commit real user market/news datasets. Tests use small synthetic fixtures only.
-data/
+# Never commit real user market/news datasets. Tests use small synthetic fixtures.
+/data/
 *.csv
 !tests/fixtures/*.csv

@@ -1,4 +1,4 @@
-# Workspace / repo hygiene — keep the repository lean. GitHub is the source of truth.
+# Workspace / repository hygiene — GitHub is the source of truth, keep it lean.
 node_modules/
 dist/
 build/
@@ -11,9 +11,10 @@ Thumbs.db
 .env
 .env.local
 
-# Never commit real datasets or exports. Tests use small synthetic fixtures.
+# Never commit real market/news datasets or large exports.
+# Automated tests use small synthetic fixtures generated in-repo.
+/data/
 *.csv
+!forexlab/tests/fixtures/*.csv
 *.parquet
 *.sqlite
-data/
-datasets/
