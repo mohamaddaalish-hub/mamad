@@ -11,6 +11,8 @@ import { datasetRegistry, newDatasetId, type DatasetRecord } from '../data/datas
 import type { ChartEngine } from '../chart/engine.ts';
 import { CandleSeries } from '../data/series.ts';
 import { Pyramid } from '../data/pyramid.ts';
+import { drawingStore } from '../draw/store.ts';
+import { overlayRegistry } from './overlays.ts';
 import type { CandleColumns } from '../data/types.ts';
 import { syntheticCandles } from '../data/synthetic.ts';
 import type { ImportReport } from '../csv/market.ts';
@@ -37,6 +39,7 @@ export async function openDataset(datasetId: string | null, opts: OpenDatasetOpt
     const replay = appStore.get().replay;
     appStore.set({ datasetId: null, replay: { ...replay, active: false, playing: false, total: 0, cursor: 0 } });
     chartHost.engine?.attachSeries(null, null);
+    void drawingStore.useDataset(null);
     return;
   }
   await datasetRegistry.hydrate();
@@ -56,6 +59,8 @@ export async function openDataset(datasetId: string | null, opts: OpenDatasetOpt
   appStore.set(patch);
   void persistUiState();
   await refreshSeries({ keepAnchor: false });
+  await drawingStore.useDataset(datasetId);
+  overlayRegistry.sync();
   if (opts.at !== undefined) chartHost.engine?.goToTime(opts.at, 'right');
   pushDiagnostic(
     'info',

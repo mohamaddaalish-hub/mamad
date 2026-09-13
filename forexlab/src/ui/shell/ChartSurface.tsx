@@ -12,6 +12,8 @@ import { viewStore } from '../../core/app/viewState.ts';
 import { bindEngine, refreshSeries } from '../../core/app/actions.ts';
 import { overlayRegistry } from '../../core/app/overlays.ts';
 import { ChartNav } from './ChartNav.tsx';
+import { DrawingToolbar } from '../controls/DrawingToolbar.tsx';
+import { drawingController } from '../../core/draw/controller.ts';
 import { quickImport } from '../../core/csv/importFlow.ts';
 
 export function ChartSurface({ id = 'main' }: { id?: string }): React.ReactElement {
@@ -41,9 +43,11 @@ export function ChartSurface({ id = 'main' }: { id?: string }): React.ReactEleme
     });
     engineRef.current = engine;
     if (id === 'main') bindEngine(engine);
+    if (id === 'main') drawingController.attach(engine);
     overlayRegistry.attach(id, engine);
     void refreshSeries({ keepAnchor: false });
     return () => {
+      if (id === 'main') drawingController.detach();
       overlayRegistry.detach(id);
       if (id === 'main') bindEngine(null);
       engine.destroy();
@@ -83,6 +87,7 @@ export function ChartSurface({ id = 'main' }: { id?: string }): React.ReactEleme
     >
       <canvas ref={canvasRef} />
       {id === 'main' ? <ChartNav /> : null}
+      {id === 'main' ? <DrawingToolbar /> : null}
     </div>
   );
 }

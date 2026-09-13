@@ -264,3 +264,146 @@ describe('navigation and import dialogs', () => {
     expect(SHORTCUTS.some((s) => s.keys === 'G')).toBe(true);
   });
 });
+
+const draw = await import('../src/core/draw/controller.ts');
+const dstore = await import('../src/core/draw/store.ts');
+
+describe('drawing tools on the live chart', () => {
+  const fire = (canvas: HTMLCanvasElement, type: string, init: Record<string, unknown> = {}) => {
+    const Ctor = (window as unknown as { PointerEvent?: typeof PointerEvent }).PointerEvent ?? window.MouseEvent;
+    canvas.dispatchEvent(
+      new (Ctor as unknown as new (t: string, i: object) => Event)(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: 400,
+        clientY: 300,
+        pointerId: 1,
+        ...init,
+      }),
+    );
+  };
+
+  it('creates a horizontal line from a single click and paints it', async () => {
+    await mount();
+    await act(async () => {
+      await loadFixture(1200);
+    });
+    await tick();
+    const before = dstore.drawingStore.count();
+    draw.drawingController.setTool('hline');
+    const canvas = document.querySelector('canvas')!;
+    await act(async () => {
+      fire(canvas, 'pointerdown', { button: 0 });
+      fire(canvas, 'pointerup', { button: 0 });
+    });
+    expect(dstore.drawingStore.count()).toBe(before + 1);
+    const d = dstore.drawingStore.visibleFor(dstore.drawingStore.dataset())[0];
+    expect(d.kind).toBe('hline');
+    expect(Number.isFinite(d.anchors[0].t)).toBe(true);
+    // Tool disarms after a single-click shape.
+    expect(draw.drawingController.tool).toBeNull();
+    resetCanvasOps();
+    await act(async () => {
+      actions.chartHost.engine?.requestRender();
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    const ops = canvasOps();
+    expect(ops.filter((o) => o.op === 'stroke').length).toBeGreaterThan(2);
+    // Price axis tag was written for the line.
+    expect(ops.some((o) => o.op === 'fillText' && /^\d\.\d{5}$/.test(String(o.args[0])))).toBe(true);
+  });
+
+  it('drags a trend line and keeps it anchored while panning', async () => {
+    await mount();
+    await act(async () => {
+      await loadFixture(1200);
+    });
+    const canvas = document.querySelector('canvas')!;
+    draw.drawingController.setTool('trend');
+    await act(async () => {
+      fire(canvas, 'pointerdown', { button: 0, clientX: 300, clientY: 250 });
+      fire(canvas, 'pointermove', { buttons: 1, clientX: 520, clientY: 360 });
+      fire(canvas, 'pointerup', { button: 0, clientX: 520, clientY: 360 });
+    });
+    const list = dstore.drawingStore.visibleFor(null).filter((d) => d.kind === 'trend');
+    expect(list.length).toBeGreaterThan(0);
+    const d = list[list.length - 1];
+    expect(d.anchors).toHaveLength(2);
+    const span = Math.abs(d.anchors[1].t - d.anchors[0].t);
+    expect(span).toBeGreaterThan(20 * 60_000); // ~37 bars at 6px/bar
+    const engine = actions.chartHost.engine!;
+    const before = { ...d.anchors[0] };
+    const rightBefore = engine.view.rightIndex;
+    await act(async () => {
+      fire(canvas, 'pointerdown', { button: 0, clientX: 700, clientY: 400 });
+      fire(canvas, 'pointermove', { buttons: 1, clientX: 480, clientY: 400 });
+      fire(canvas, 'pointerup', { button: 0, clientX: 480, clientY: 400 });
+    });
+    expect(engine.view.rightIndex).not.toBe(rightBefore);
+    // The shape itself must not have moved in time/price space.
+    const after = dstore.drawingStore.get(d.id)!;
+    expect(after.anchors[0].t).toBe(before.t);
+    expect(after.anchors[0].p).toBeCloseTo(before.p, 10);
+  });
+
+  it('selects, moves, undoes and re-applies through the store', async () => {
+    await mount();
+    await act(async () => {
+      await loadFixture(1200);
+    });
+    const canvas = document.querySelector('canvas')!;
+    draw.drawingController.setTool('hline');
+    await act(async () => {
+      fire(canvas, 'pointerdown', { button: 0, clientX: 400, clientY: 280 });
+      fire(canvas, 'pointerup', { button: 0, clientX: 400, clientY: 280 });
+    });
+    const d = dstore.drawingStore.visibleFor(null).slice(-1)[0];
+    const priceBefore = d.anchors[0].p;
+    // Click on the line body to select, then drag it.
+    const engine = actions.chartHost.engine!;
+    const y = Math.round(engine.view.priceToY(priceBefore));
+    await act(async () => {
+      fire(canvas, 'pointerdown', { button: 0, clientX: 500, clientY: y });
+      fire(canvas, 'pointermove', { buttons: 1, clientX: 500, clientY: y - 40 });
+      fire(canvas, 'pointerup', { button: 0, clientX: 500, clientY: y - 40 });
+    });
+    expect(dstore.drawingStore.selection).toContain(d.id);
+    expect(dstore.drawingStore.get(d.id)!.anchors[0].p).not.toBe(priceBefore);
+    await act(async () => {
+      draw.drawingController.undo();
+    });
+    expect(dstore.drawingStore.get(d.id)!.anchors[0].p).toBeCloseTo(priceBefore, 10);
+  });
+
+  it('escapes out of an armed tool and clears selection with Escape', async () => {
+    await mount();
+    draw.drawingController.setTool('rect');
+    expect(appStore.get().tool).toBe('rect');
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(appStore.get().tool).toBeNull();
+  });
+
+  it('renders the drawings manager rows for the current dataset', async () => {
+    await mount();
+    await act(async () => {
+      await loadFixture(1200);
+    });
+    await act(async () => {
+      dstore.drawingStore.add('hline', [{ t: Date.UTC(2024, 0, 2, 10), p: 1.09 }]);
+      dstore.drawingStore.add('trend', [
+        { t: Date.UTC(2024, 0, 2, 10), p: 1.09 },
+        { t: Date.UTC(2024, 0, 2, 14), p: 1.1 },
+      ]);
+      appStore.set({ rightOpen: true, panel: 'objects' });
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(document.body.textContent).toMatch(/Drawings · 2/);
+    expect(document.querySelectorAll('.draw-list .list-row').length).toBe(2);
+    await act(async () => {
+      (document.querySelector('.draw-list .list-row .icon-btn') as HTMLButtonElement).click();
+    });
+    expect(dstore.drawingStore.getSnapshot().list.some((x) => x.hidden)).toBe(true);
+  });
+});

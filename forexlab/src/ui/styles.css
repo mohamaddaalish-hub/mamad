@@ -633,6 +633,54 @@ input[type='color'] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.list-row.muted {
+  opacity: 0.55;
+}
+.list-row .cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.list-row .row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  opacity: 0.95;
+}
+.list-row .row-actions {
+  display: inline-flex;
+  gap: 1px;
+  opacity: 0;
+}
+.list-row:hover .row-actions,
+.list-row.selected .row-actions {
+  opacity: 1;
+}
+.icon-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-dim);
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.icon-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--panel);
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 .list-row .sub {
   font-size: var(--fs-xs);
   color: var(--muted);
@@ -1039,3 +1087,69 @@ input[type='color'] {
   opacity: 0.7;
 }
 .cal-cell:disabled { opacity: 0.4; }
+
+/* ------------------------------------------------------------- drawing toolbar */
+.draw-toolbar {
+  position: absolute;
+  top: 34px;
+  left: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  z-index: 4;
+  width: 30px;
+}
+.draw-toolbar .tb-sep {
+  height: 1px;
+  background: var(--border-soft);
+  margin: 3px 1px;
+}
+.draw-toolbar .tb-more {
+  position: absolute;
+  left: 34px;
+  top: 78px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  width: 30px;
+}
+.draw-toolbar .tb-style {
+  position: absolute;
+  left: 34px;
+  top: 4px;
+  width: 186px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+}
+.swatch {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  height: 16px;
+  cursor: pointer;
+  padding: 0;
+}
+.swatch.active {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
