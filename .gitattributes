@@ -1,0 +1,1 @@
+data/forex/EURUSD/M1/*.csv filter=lfs diff=lfs merge=lfs -text
