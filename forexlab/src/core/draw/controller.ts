@@ -94,8 +94,12 @@ class DrawingController {
 
   /* ------------------------------------------------------------------- tools */
 
+  /** Registered by app/modes so arming a drawing releases the other mode. */
+  onToolChange: ((kind: DrawingKind | null) => void) | null = null;
+
   setTool(kind: DrawingKind | null): void {
     this.tool = kind;
+    if (this.onToolChange) this.onToolChange(kind);
     this.gesture = null;
     appStore.set({ tool: kind });
     this.engine?.setToolCursor(kind ? 'crosshair' : undefined);

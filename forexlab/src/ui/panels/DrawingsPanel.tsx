@@ -7,6 +7,7 @@
 import { useRef, useState } from 'react';
 import { Btn, Chip, Empty, Icon, Section } from '../kit.tsx';
 import { drawingController } from '../../core/draw/controller.ts';
+import { VirtualList } from '../kit.tsx';
 import { drawingStore } from '../../core/draw/store.ts';
 import { useDrawings } from '../../core/draw/hooks.ts';
 import { TOOL_BY_KIND, type Drawing } from '../../core/draw/model.ts';
@@ -129,8 +130,13 @@ export function DrawingsPanel(): React.ReactElement {
             Pick a tool from the chart toolbar — H, V and T are the fast ones.
           </Empty>
         ) : (
-          <div className="list draw-list">
-            {rows.map((d) => {
+          <VirtualList
+            className="draw-list"
+            items={rows}
+            rowHeight={46}
+            maxHeight={420}
+            plainUnder={40}
+            render={(d) => {
               const tool = TOOL_BY_KIND[d.kind];
               return (
                 <div
@@ -214,8 +220,8 @@ export function DrawingsPanel(): React.ReactElement {
                   </span>
                 </div>
               );
-            })}
-          </div>
+            }}
+          />
         )}
       </Section>
 

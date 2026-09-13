@@ -16,6 +16,7 @@ import { CandleSeries } from '../data/series.ts';
 import { Pyramid } from '../data/pyramid.ts';
 import { drawingStore } from '../draw/store.ts';
 import { overlayRegistry } from './overlays.ts';
+import { adoptPricePrecision } from '../backtest/store.ts';
 import type { CandleColumns } from '../data/types.ts';
 import { syntheticCandles } from '../data/synthetic.ts';
 import type { ImportReport } from '../csv/market.ts';
@@ -67,6 +68,7 @@ export async function openDataset(datasetId: string | null, opts: OpenDatasetOpt
   appStore.set(patch);
   void persistUiState();
   await refreshSeries({ keepAnchor: false });
+  adoptPricePrecision(rec.report.priceDecimals, rec.symbol);
   await drawingStore.useDataset(datasetId);
   overlayRegistry.sync();
   if (opts.at !== undefined) chartHost.engine?.goToTime(opts.at, 'right');
@@ -309,6 +311,7 @@ export async function loadFixture(bars = 12_000): Promise<void> {
     minLow: Infinity,
     maxHigh: -Infinity,
     volumeSeen: true,
+    priceDecimals: 5,
     invalid: [],
     notes: ['SYNTHETIC deterministic fixture — not market data, never a trading input.'],
     durationMs: 0,

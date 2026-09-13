@@ -7,6 +7,7 @@ import { DrawingsPanel } from '../panels/DrawingsPanel.tsx';
 import { ReplayPanel } from '../panels/ReplayPanel.tsx';
 import { NewsPanel } from '../news/NewsPanel.tsx';
 import { ResearchPanel } from '../research/ResearchPanel.tsx';
+import { BacktestPanel } from '../panels/BacktestPanel.tsx';
 import type { IconName } from '../kit.tsx';
 
 export interface PanelTab {
@@ -18,6 +19,7 @@ export interface PanelTab {
 }
 
 export const PANEL_TABS: PanelTab[] = [
+  { id: 'backtest', label: 'Backtest', title: 'Manual trades, statistics and sessions', icon: 'target', component: BacktestPanel },
   { id: 'replay', label: 'Replay', title: 'Historical bar replay and its integrity rules', icon: 'play', component: ReplayPanel },
   { id: 'news', label: 'News', title: 'Economic calendar: import, explore and filter releases', icon: 'layers', component: NewsPanel },
   { id: 'research', label: 'Research', title: 'Historical news reaction research and the news backtester', icon: 'layers', component: ResearchPanel },

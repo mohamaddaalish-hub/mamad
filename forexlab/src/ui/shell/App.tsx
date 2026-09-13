@@ -11,6 +11,8 @@ import { datasetRegistry } from '../../core/data/datasets.ts';
 import { installGlobalShortcuts } from '../../core/app/shortcutsShell.ts';
 import { installDrawingShortcuts } from '../../core/draw/shortcuts.ts';
 import { installReplayShortcuts } from '../../core/replay/shortcuts.ts';
+import { installTradeShortcuts } from '../../core/backtest/shortcuts.ts';
+import { hydrateBacktest } from '../../core/backtest/store.ts';
 import { closeDialog, useDialog } from '../../core/app/dialogs.ts';
 import { ImportDialog } from '../panels/ImportDialog.tsx';
 import { GoToDateDialog } from '../panels/GoToDate.tsx';
@@ -31,9 +33,11 @@ export function App(): React.ReactElement {
       await restoreUiState();
       appStore.set({ ready: true });
     })();
+    void hydrateBacktest();
     installGlobalShortcuts();
     installDrawingShortcuts();
-    return installReplayShortcuts();
+    installReplayShortcuts();
+    return installTradeShortcuts();
   }, []);
 
   useEffect(() => {

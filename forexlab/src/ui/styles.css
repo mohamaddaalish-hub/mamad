@@ -1322,3 +1322,36 @@ input[type='color'] {
 .map-grid { display: grid; grid-template-columns: 130px 1fr auto; gap: 4px 8px; align-items: center; }
 @media (max-width: 640px) { .map-grid { grid-template-columns: 1fr; } }
 .chip.accent { border-color: var(--accent); color: var(--accent); }
+/* ------------------------------------------------------------- trade client */
+.trade-bar {
+  position: absolute;
+  top: 34px;
+  right: 70px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  z-index: 4;
+  pointer-events: auto;
+}
+.trade-risk {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.list-row .title .chip,
+.list-row .sub .chip {
+  margin-left: 5px;
+}
+.note.warn {
+  color: var(--warn);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+}

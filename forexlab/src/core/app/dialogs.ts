@@ -58,6 +58,8 @@ export const SHORTCUTS: ShortcutDoc[] = [
   { keys: 'Esc', label: 'Cancel tool or gesture, close dialog, exit fullscreen', scope: 'Global' },
   { keys: 'Ctrl (⌘) + Z', label: 'Undo (drawings, trades)', scope: 'History' },
   { keys: 'Shift + Ctrl (⌘) + Z', label: 'Redo (drawings, trades)', scope: 'History' },
+  { keys: 'B / S', label: 'Arm a buy / sell entry, then click the bar to trade', scope: 'Trading' },
+  { keys: 'C', label: 'Close the oldest open position at the newest revealed bar', scope: 'Trading' },
   { keys: 'Space', label: 'Play / pause Bar Replay', scope: 'Replay' },
   { keys: 'R', label: 'Restart replay at the start point', scope: 'Replay' },
   { keys: '→', label: 'Step one bar forward', scope: 'Replay' },

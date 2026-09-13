@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { Btn, Icon, Slider, Sel } from '../kit.tsx';
 import { drawingController } from '../../core/draw/controller.ts';
+import { armDrawingTool } from '../../core/app/modes.ts';
 import { useDrawingCount, useDrawingSelection, useDrawings } from '../../core/draw/hooks.ts';
 import { DRAWING_TOOLS, PALETTE, type DrawStyle, type DrawingKind } from '../../core/draw/model.ts';
 import { useApp } from '../../core/app/state.ts';
@@ -27,7 +28,7 @@ export function DrawingToolbar(): React.ReactElement {
   const bump = () => void snapshot.version;
 
   const setTool = (kind: DrawingKind | null) => {
-    drawingController.setTool(kind);
+    armDrawingTool(kind);
     bump();
   };
 

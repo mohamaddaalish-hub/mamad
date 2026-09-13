@@ -776,3 +776,77 @@ export function InlineEdit({ value, onSave, className }: { value: string; onSave
     />
   );
 }
+
+/**
+ * Windowed list for the long tail: thousands of trades or news rows render as
+ * ~20 DOM nodes instead of thousands. Small lists stay plain markup, so nothing
+ * about the normal case changes. Rows are absolutely positioned at a measured
+ * height, so each list declares the height its own row markup needs.
+ */
+export function VirtualList<T>({
+  items,
+  rowHeight,
+  render,
+  maxHeight = 380,
+  plainUnder = 60,
+  className,
+}: {
+  items: T[];
+  rowHeight: number;
+  render: (item: T, index: number) => ReactNode;
+  maxHeight?: number;
+  plainUnder?: number;
+  className?: string;
+}): React.ReactElement {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = React.useState(0);
+  const [viewport, setViewport] = React.useState(maxHeight);
+  const virtual = items.length > plainUnder;
+
+  useEffect(() => {
+    if (!virtual) return;
+    const el = ref.current;
+    if (!el) return;
+    const measure = (): void => setViewport(Math.max(120, el.clientHeight || maxHeight));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [virtual, maxHeight]);
+
+  if (!virtual) return <div className={cx('list', className)}>{items.map((it, i) => render(it, i))}</div>;
+
+  const overscan = 3;
+  const first = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+  const last = Math.min(items.length, Math.ceil((scrollTop + viewport) / rowHeight) + overscan);
+  const slice: Array<{ item: T; index: number }> = [];
+  for (let i = first; i < last; i++) slice.push({ item: items[i], index: i });
+
+  return (
+    <div
+      ref={ref}
+      className={cx('scroll-y', className)}
+      style={{ maxHeight, overflowY: 'auto', overscrollBehavior: 'contain' }}
+      onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+    >
+      <div style={{ height: items.length * rowHeight, position: 'relative' }}>
+        {slice.map(({ item, index }) => (
+          <div
+            key={index}
+            style={{
+              position: 'absolute',
+              top: index * rowHeight,
+              left: 0,
+              right: 0,
+              height: rowHeight,
+              overflow: 'hidden',
+            }}
+          >
+            {render(item, index)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

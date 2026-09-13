@@ -10,6 +10,7 @@ import { registerShortcutHandler } from '../app/shortcuts.ts';
 import { dialogStore } from '../app/dialogs.ts';
 import { pushDiagnostic } from '../app/state.ts';
 import { drawingController } from './controller.ts';
+import { toggleDrawingTool } from '../app/modes.ts';
 import { drawingStore } from './store.ts';
 import type { DrawingKind } from './model.ts';
 
@@ -60,7 +61,7 @@ export function installDrawingShortcuts(): () => void {
         default: {
           const tool = TOOL_KEYS[key];
           if (!tool) return false;
-          drawingController.toggleTool(tool);
+          toggleDrawingTool(tool);
           return true;
         }
       }
