@@ -10,6 +10,7 @@ import { appStore, restoreUiState, useApp } from '../../core/app/state.ts';
 import { datasetRegistry } from '../../core/data/datasets.ts';
 import { installGlobalShortcuts } from '../../core/app/shortcutsShell.ts';
 import { installDrawingShortcuts } from '../../core/draw/shortcuts.ts';
+import { installReplayShortcuts } from '../../core/replay/shortcuts.ts';
 import { closeDialog, useDialog } from '../../core/app/dialogs.ts';
 import { ImportDialog } from '../panels/ImportDialog.tsx';
 import { GoToDateDialog } from '../panels/GoToDate.tsx';
@@ -29,7 +30,8 @@ export function App(): React.ReactElement {
       appStore.set({ ready: true });
     })();
     installGlobalShortcuts();
-    return installDrawingShortcuts();
+    installDrawingShortcuts();
+    return installReplayShortcuts();
   }, []);
 
   useEffect(() => {

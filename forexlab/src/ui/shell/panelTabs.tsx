@@ -4,6 +4,7 @@ import type { ComponentType } from 'react';
 import type { PanelId } from '../../core/app/state.ts';
 import { SettingsPanel } from '../panels/SettingsPanel.tsx';
 import { DrawingsPanel } from '../panels/DrawingsPanel.tsx';
+import { ReplayPanel } from '../panels/ReplayPanel.tsx';
 import type { IconName } from '../kit.tsx';
 
 export interface PanelTab {
@@ -15,6 +16,7 @@ export interface PanelTab {
 }
 
 export const PANEL_TABS: PanelTab[] = [
+  { id: 'replay', label: 'Replay', title: 'Historical bar replay and its integrity rules', icon: 'play', component: ReplayPanel },
   { id: 'objects', label: 'Objects', title: 'Drawings on this chart', icon: 'layers', component: DrawingsPanel },
   { id: 'settings', label: 'Settings', title: 'Chart, storage and diagnostics', icon: 'settings', component: SettingsPanel },
 ];

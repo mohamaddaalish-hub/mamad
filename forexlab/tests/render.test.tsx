@@ -31,6 +31,8 @@ const { datasetRegistry } = await import('../src/core/data/datasets.ts');
 const { Pyramid } = await import('../src/core/data/pyramid.ts');
 const { syntheticCandles } = await import('../src/core/data/synthetic.ts');
 const { loadFixture, openDataset, registerImportedDataset, datasetRecordFromReport } = actions;
+const replay = await import('../src/core/replay/engine.ts');
+const gate = await import('../src/core/replay/gate.ts');
 
 let root: Root | null = null;
 
@@ -405,5 +407,224 @@ describe('drawing tools on the live chart', () => {
       (document.querySelector('.draw-list .list-row .icon-btn') as HTMLButtonElement).click();
     });
     expect(dstore.drawingStore.getSnapshot().list.some((x) => x.hidden)).toBe(true);
+  });
+});
+
+describe('bar replay on the live chart', () => {
+  /** Deterministic starting point: a clean dataset at its native 5m timeframe. */
+  async function freshReplayFixture(bars: number): Promise<void> {
+    await mount();
+    await act(async () => {
+      replay.barReplay.pause();
+      replay.barReplay.stop();
+      replay.barReplay.setStartIndex(null);
+      await actions.openDataset(null);
+      await loadFixture(bars);
+      await actions.setTimeframe('5m');
+    });
+    await tick();
+  }
+
+  it('arms, steps, keeps the future unreachable and restores on exit', async () => {
+    await freshReplayFixture(1000);
+    const engine = actions.chartHost.engine!;
+    const full = engine.getBaseSeries()!.count;
+    expect(full).toBe(1000);
+    expect(gate.currentGate().active).toBe(false);
+
+    await act(async () => {
+      replay.barReplay.setStartIndex(50);
+      replay.barReplay.start(50);
+    });
+    const state = appStore.get().replay;
+    expect(state.active).toBe(true);
+    expect(state.cursor).toBe(50);
+    expect(state.total).toBe(full);
+    // The engine itself is holding a clipped series: 51 bars, not `full`.
+    expect(engine.getSeries()!.count).toBe(51);
+    expect(gate.hiddenBarCount()).toBe(full - 51);
+    expect(gate.allowedSeries()!.count).toBe(51);
+    // Zooming and panning hard cannot expose a hidden bar: the view is clamped to
+    // the revealed window, and a future timestamp resolves to the last known bar.
+    await act(async () => {
+      engine.fitAll();
+      engine.zoomBy(4);
+      engine.view.panBy(1_000_000, engine.getSeries()!.count);
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(engine.getVisibleRange().to).toBeLessThanOrEqual(51);
+    expect(Number.isNaN(engine.getSeries()!.time(52))).toBe(true);
+    const futureT = engine.getBaseSeries()!.time(999);
+    expect(engine.getSeries()!.indexAtOrBefore(futureT)).toBe(50);
+    let jumped = true;
+    await act(async () => {
+      jumped = engine.goToTime(futureT, 'right');
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(jumped).toBe(true); // clamped to what is known, not refused
+    expect(engine.getVisibleRange().to).toBeLessThanOrEqual(51);
+
+    await act(async () => {
+      replay.barReplay.step(1);
+      replay.barReplay.step(1);
+    });
+    expect(appStore.get().replay.cursor).toBe(52);
+    expect(engine.getSeries()!.count).toBe(53);
+
+    // Determinism: one batched 40-bar jump and 42 single steps must land on the
+    // identical visible state — speed and batching change delivery, never content.
+    let batched = '';
+    await act(async () => {
+      replay.barReplay.stepMany(40);
+      batched = replay.barReplay.checksum();
+    });
+    expect(appStore.get().replay.cursor).toBe(92);
+    await act(async () => {
+      replay.barReplay.restart();
+    });
+    expect(appStore.get().replay.cursor).toBe(50);
+    await act(async () => {
+      for (let i = 0; i < 42; i++) replay.barReplay.step(1);
+    });
+    expect(appStore.get().replay.cursor).toBe(92);
+    expect(replay.barReplay.checksum()).toBe(batched);
+
+    await act(async () => {
+      replay.barReplay.stop();
+    });
+    expect(appStore.get().replay.active).toBe(false);
+    expect(engine.getSeries()!.count).toBe(full);
+    expect(engine.getReplayBarrier()).toBeNull();
+  });
+
+  it('plays, pauses and stops at the last bar', async () => {
+    await freshReplayFixture(400);
+    const engine = actions.chartHost.engine!;
+    await act(async () => {
+      replay.barReplay.setSpeed(16);
+      replay.barReplay.start(0, { play: true });
+      await new Promise((r) => setTimeout(r, 320));
+    });
+    expect(appStore.get().replay.playing).toBe(true);
+    expect(appStore.get().replay.cursor).toBeGreaterThan(0);
+    await act(async () => {
+      replay.barReplay.pause();
+    });
+    expect(appStore.get().replay.playing).toBe(false);
+    const paused = appStore.get().replay.cursor;
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 80));
+    });
+    expect(appStore.get().replay.cursor).toBe(paused);
+    // March to the end: the transport stops there rather than clamping forever.
+    await act(async () => {
+      replay.barReplay.step(10_000);
+    });
+    const total = engine.getBaseSeries()!.count;
+    expect(appStore.get().replay.cursor).toBe(total - 1);
+    expect(appStore.get().replay.playing).toBe(false);
+    expect(engine.getSeries()!.count).toBe(total);
+    await act(async () => {
+      replay.barReplay.stop();
+    });
+  });
+
+  it('refuses to replay an empty chart and shows an unarmed panel', async () => {
+    await mount();
+    await act(async () => {
+      replay.barReplay.stop();
+      replay.barReplay.setStartIndex(null);
+      await actions.openDataset(null);
+      appStore.set({ rightOpen: true, panel: 'replay', replay: { active: false, cursor: 0, knownUntil: null, total: 0, playing: false, speed: 1, follow: true } });
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(document.body.textContent).toMatch(/Start point/);
+    expect(document.body.textContent).toMatch(/not chosen/);
+    let started = true;
+    await act(async () => {
+      started = replay.barReplay.start(0);
+    });
+    expect(started).toBe(false);
+    expect(appStore.get().diagnostics.some((d) => /Nothing to replay/.test(d.text))).toBe(true);
+  });
+
+  it('keeps the same knowledge boundary across a timeframe switch', async () => {
+    await freshReplayFixture(600);
+    const engine = actions.chartHost.engine!;
+    const base = engine.getBaseSeries()!;
+    expect(base.tf).toBe('5m');
+    await act(async () => {
+      replay.barReplay.start(5);
+    });
+    const known = appStore.get().replay.knownUntil;
+    expect(known).not.toBeNull();
+    expect(engine.getSeries()!.count).toBe(6);
+    // Six 5m bars are exactly one 30m bar: the switch must not reveal more.
+    await act(async () => {
+      await actions.setTimeframe('30m');
+    });
+    const after = appStore.get().replay;
+    expect(after.cursor).toBe(0);
+    expect(engine.getSeries()!.count).toBe(1);
+    expect(engine.getSeries()!.time(0)).toBe(base.time(0));
+    expect(appStore.get().replay.knownUntil).toBe(known);
+    // Stepping at 30m reveals a whole half hour, and the 5m view catches up to it.
+    await act(async () => {
+      replay.barReplay.step(1);
+      await actions.setTimeframe('5m');
+    });
+    expect(appStore.get().replay.cursor).toBe(11);
+    expect(engine.getSeries()!.count).toBe(12);
+    await act(async () => {
+      await actions.setTimeframe('30m');
+    });
+    expect(appStore.get().replay.cursor).toBe(1);
+  });
+
+  it('owns Space, the arrows, R and Escape while replay is active', async () => {
+    await freshReplayFixture(400);
+    const key = (init: KeyboardEventInit): void => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
+    };
+    await act(async () => {
+      replay.barReplay.start(20);
+    });
+    expect(appStore.get().replay.cursor).toBe(20);
+    expect(appStore.get().replay.playing).toBe(false);
+    await act(async () => {
+      key({ key: ' ' });
+    });
+    expect(appStore.get().replay.playing).toBe(true);
+    await act(async () => {
+      key({ key: ' ' });
+    });
+    expect(appStore.get().replay.playing).toBe(false);
+    await act(async () => {
+      key({ key: 'ArrowRight' });
+    });
+    expect(appStore.get().replay.cursor).toBe(21);
+    await act(async () => {
+      key({ key: 'ArrowRight', shiftKey: true });
+    });
+    expect(appStore.get().replay.cursor).toBe(31);
+    await act(async () => {
+      key({ key: 'ArrowLeft' });
+    });
+    expect(appStore.get().replay.cursor).toBe(30);
+    await act(async () => {
+      key({ key: 'r' });
+    });
+    expect(appStore.get().replay.cursor).toBe(20); // back to the armed start
+    await act(async () => {
+      key({ key: 'Escape' });
+    });
+    expect(appStore.get().replay.active).toBe(false);
+    expect(actions.chartHost.engine!.getSeries()!.count).toBe(400);
+    // Idle replay must hand the arrows back to normal navigation.
+    const before = appStore.get().replay.active;
+    await act(async () => {
+      key({ key: 'ArrowRight' });
+    });
+    expect(appStore.get().replay.active).toBe(before);
   });
 });

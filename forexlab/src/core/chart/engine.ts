@@ -158,10 +158,16 @@ export class ChartEngine {
     this.hooks = { ...this.hooks, ...hooks };
   }
 
+  /**
+   * `series` is the full dataset; the *visible* series is the dataset clipped by
+   * the replay barrier, so nothing downstream of the engine can reach a future
+   * bar — not the paint plan, not hover, not tooltips, not overlays.
+   */
   attachSeries(series: CandleSeries | null, pyramid: Pyramid | null, opts: { tz?: string; keepTimeAnchor?: boolean } = {}): void {
     const anchorTime = opts.keepTimeAnchor ? this.anchorTime() : null;
     const pxPerBar = this.view.pxPerBar;
-    this.series = series;
+    this.base = series;
+    this.series = this.clipToBarrier(series);
     this.pyramid = pyramid;
     if (opts.tz) this.tz = opts.tz;
     if (!series || series.count === 0) {
@@ -179,6 +185,19 @@ export class ChartEngine {
     this.view.pxPerBar = pxPerBar;
     this.view.clampPan(series.count);
     this.markDirty();
+  }
+
+  private base: CandleSeries | null = null;
+
+  /** Full dataset handle — for import diagnostics and the replay total, never for analytics. */
+  getBaseSeries(): CandleSeries | null {
+    return this.base;
+  }
+
+  private clipToBarrier(series: CandleSeries | null): CandleSeries | null {
+    if (!series || this.barrier === null) return series;
+    const last = Math.max(0, Math.min(series.count - 1, Math.round(this.barrier)));
+    return series.withLimit(last + 1);
   }
 
   private anchorTime(): number | null {
@@ -206,11 +225,20 @@ export class ChartEngine {
   }
 
   setReplayBarrier(index: number | null, follow = false): void {
+    const changed = this.barrier !== index;
+    const wasAtEdge = this.series ? this.view.rightIndex >= this.series.count - 1 - 0.001 : true;
     this.barrier = index;
-    if (follow && index !== null && this.series) {
-      this.view.rightIndex = Math.max(0, Math.min(this.series.count - 1, index));
+    if (changed) this.series = this.clipToBarrier(this.base);
+    if (index !== null && this.series && (follow || wasAtEdge)) {
+      // Keep the newest allowed bar pinned to the right edge while stepping.
+      this.view.rightIndex = this.series.count - 1 + this.view.rightGap / Math.max(0.2, this.view.pxPerBar);
     }
+    if (this.series) this.view.clampPan(this.series.count);
     this.markDirty();
+  }
+
+  getReplayBarrier(): number | null {
+    return this.barrier;
   }
 
   setLegendNote(note: string): void {

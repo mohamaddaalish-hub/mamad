@@ -13,6 +13,7 @@ import { bindEngine, refreshSeries } from '../../core/app/actions.ts';
 import { overlayRegistry } from '../../core/app/overlays.ts';
 import { ChartNav } from './ChartNav.tsx';
 import { DrawingToolbar } from '../controls/DrawingToolbar.tsx';
+import { ReplayBar } from '../controls/ReplayBar.tsx';
 import { drawingController } from '../../core/draw/controller.ts';
 import { quickImport } from '../../core/csv/importFlow.ts';
 
@@ -88,6 +89,7 @@ export function ChartSurface({ id = 'main' }: { id?: string }): React.ReactEleme
       <canvas ref={canvasRef} />
       {id === 'main' ? <ChartNav /> : null}
       {id === 'main' ? <DrawingToolbar /> : null}
+      {id === 'main' ? <ReplayBar /> : null}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { Btn, Chip } from '../kit.tsx';
 import { openDialog } from '../../core/app/dialogs.ts';
 import { chartHost, jumpToFirst, jumpToLast, stepPeriod } from '../../core/app/actions.ts';
 import { useApp } from '../../core/app/state.ts';
+import { barReplay } from '../../core/replay/engine.ts';
 import { useView } from '../../core/app/viewState.ts';
 import { formatDateTime, formatTime } from '../../core/time/tz.ts';
 
@@ -58,6 +59,21 @@ export function ChartNav(): React.ReactElement {
           {progress}%
         </Chip>
       ) : null}
+      <Btn
+        size="xs"
+        icon={replay.active ? 'close' : 'play'}
+        active={replay.active}
+        variant={replay.active ? 'primary' : 'default'}
+        disabled={count === 0}
+        tip={
+          replay.active
+            ? 'Exit replay (Esc) — the hidden bars become visible again'
+            : 'Replay from the bar at the right edge — later bars stay unavailable to the chart, drawings, trades and news'
+        }
+        onClick={() => barReplay.toggle()}
+      >
+        {replay.active ? `replay ${Math.min(replay.cursor + 1, replay.total || replay.cursor + 1)}/${replay.total || count}` : 'Replay'}
+      </Btn>
     </div>
   );
 }

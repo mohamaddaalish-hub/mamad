@@ -9,6 +9,9 @@
 import { appStore, pushDiagnostic, persistUiState, type AppState } from './state.ts';
 import { datasetRegistry, newDatasetId, type DatasetRecord } from '../data/datasets.ts';
 import type { ChartEngine } from '../chart/engine.ts';
+import { chartHost } from '../chart/host.ts';
+import { cursorForKnownUntil, knownUntilForCursor } from '../replay/boundary.ts';
+import { barReplay } from '../replay/engine.ts';
 import { CandleSeries } from '../data/series.ts';
 import { Pyramid } from '../data/pyramid.ts';
 import { drawingStore } from '../draw/store.ts';
@@ -19,7 +22,9 @@ import type { ImportReport } from '../csv/market.ts';
 import { isTimeframeId, timeframe, type TimeframeId } from '../time/timeframes.ts';
 import { formatDate, formatTime, zonedToInstant } from '../time/tz.ts';
 
-export const chartHost: { engine: ChartEngine | null } = { engine: null };
+// Re-exported so existing UI call sites keep working; the object lives in
+// chart/host.ts so core layers can reach it without importing this module.
+export { chartHost };
 
 export function bindEngine(engine: ChartEngine | null): void {
   chartHost.engine = engine;
@@ -37,7 +42,10 @@ export interface OpenDatasetOptions {
 export async function openDataset(datasetId: string | null, opts: OpenDatasetOptions = {}): Promise<void> {
   if (!datasetId) {
     const replay = appStore.get().replay;
-    appStore.set({ datasetId: null, replay: { ...replay, active: false, playing: false, total: 0, cursor: 0 } });
+    appStore.set({
+      datasetId: null,
+      replay: { ...replay, active: false, playing: false, total: 0, cursor: 0, knownUntil: null },
+    });
     chartHost.engine?.attachSeries(null, null);
     void drawingStore.useDataset(null);
     return;
@@ -99,12 +107,18 @@ export async function refreshSeries(opts: { keepAnchor?: boolean } = {}): Promis
 export function syncReplayTotals(series: CandleSeries | null, keepActive: boolean): void {
   const replay = appStore.get().replay;
   const total = series?.count ?? 0;
-  if (keepActive && total > 0) {
-    appStore.set({ replay: { ...replay, total, cursor: Math.min(replay.cursor, total - 1) } });
-    chartHost.engine?.setReplayBarrier(Math.min(replay.cursor, total - 1), replay.follow);
+  if (keepActive && series && total > 0) {
+    // Re-derive the cursor from the knowledge boundary: a coarser timeframe has a
+    // different index space, and the bar under construction must stay withheld.
+    const known = replay.knownUntil ?? knownUntilForCursor(series, Math.min(replay.cursor, total - 1));
+    const cursor = Math.max(0, cursorForKnownUntil(series, known));
+    appStore.set({ replay: { ...replay, total, cursor, knownUntil: known } });
+    chartHost.engine?.setReplayBarrier(cursor, replay.follow);
     return;
   }
-  appStore.set({ replay: { ...replay, total, cursor: Math.max(0, total - 1), active: false, playing: false } });
+  appStore.set({
+    replay: { ...replay, total, cursor: Math.max(0, total - 1), knownUntil: null, active: false, playing: false },
+  });
   chartHost.engine?.setReplayBarrier(null);
 }
 
@@ -113,6 +127,8 @@ export async function setTimeframe(tf: TimeframeId): Promise<void> {
   appStore.set({ tf });
   void persistUiState();
   await refreshSeries({ keepAnchor: true });
+  // Replay keeps its *time* boundary; the armed index and cursor are re-derived.
+  barReplay.reanchor();
 }
 
 export async function setTimezone(tz: string): Promise<void> {
@@ -120,6 +136,7 @@ export async function setTimezone(tz: string): Promise<void> {
   appStore.set({ tz });
   void persistUiState();
   await refreshSeries({ keepAnchor: true });
+  barReplay.reanchor();
 }
 
 export function updateChartSettings(patch: Partial<AppState['chart']>): void {

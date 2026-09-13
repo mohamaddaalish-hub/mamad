@@ -252,3 +252,41 @@ describe('level-of-detail pyramid', () => {
     expect(exact.min).toBeLessThanOrEqual(unclipped.max);
   });
 });
+
+describe('aggregation respects the replay barrier (look-ahead guard)', () => {
+  const T0 = Date.UTC(2024, 0, 2, 0, 0);
+
+  function base(bars: number) {
+    const { cols } = syntheticCandles({ bars, tf: '1m', start: T0, seed: 5 });
+    return new CandleSeries({ symbol: 'EURUSD', tf: '1m', tz: 'UTC', cols, hasVolume: true });
+  }
+
+  it('produces fewer buckets when the barrier is early', () => {
+    const s = base(600);
+    const full = aggregateSeries(s, '15m', 'UTC');
+    const gated = aggregateSeries(s.withLimit(150), '15m', 'UTC');
+    expect(full.count).toBe(40);
+    expect(gated.count).toBe(10);
+    expect(gated.lastTime()).toBe(s.time(135));
+  });
+
+  it('the last partial bucket never contains a hidden bar', () => {
+    const s = base(600);
+    // Barrier inside a 15-minute bucket: that bucket is built from allowed rows only.
+    const gated = aggregateSeries(s.withLimit(157), '15m', 'UTC');
+    const last = gated.count - 1;
+    expect(gated.cols.n[last]).toBe(157 - 150); // bars 150..156
+    const direct = aggregateSeries(s, '15m', 'UTC');
+    expect(direct.cols.n[last]).toBe(15);
+    // So the gated close is bar 156's close, not the future bar 164's.
+    expect(gated.cols.c[last]).toBe(s.cols.c[156]);
+    expect(direct.cols.c[last]).toBe(s.cols.c[164]);
+  });
+
+  it('a barrier on a bucket boundary drops the future bucket entirely', () => {
+    const s = base(600);
+    const gated = aggregateSeries(s.withLimit(150), '15m', 'UTC');
+    expect(gated.count).toBe(10);
+    expect(gated.time(9)).toBe(Date.UTC(2024, 0, 2, 2, 15));
+  });
+});

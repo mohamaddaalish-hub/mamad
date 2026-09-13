@@ -12,7 +12,15 @@ import { DEFAULT_CHART_SETTINGS, type ChartSettings } from '../chart/style.ts';
 import type { TimeframeId } from '../time/timeframes.ts';
 import { uid } from '../util/format.ts';
 
-export type PanelId = 'watchlist' | 'import' | 'news' | 'backtest' | 'research' | 'objects' | 'settings';
+export type PanelId =
+  | 'watchlist'
+  | 'import'
+  | 'replay'
+  | 'backtest'
+  | 'news'
+  | 'research'
+  | 'objects'
+  | 'settings';
 
 export interface WatchItem {
   id: string;
@@ -34,6 +42,12 @@ export interface ReplayState {
   active: boolean;
   /** Cursor index into the active timeframe series (inclusive last visible bar). */
   cursor: number;
+  /**
+   * Authoritative boundary: every base bar with time <= knownUntil is known, and
+   * nothing after it is. `cursor` is derived from this on every timeframe or
+   * timezone change, so replay knowledge survives aggregation.
+   */
+  knownUntil: number | null;
   total: number;
   playing: boolean;
   speed: number;
@@ -80,7 +94,7 @@ export const initialAppState: AppState = {
   rightOpen: false,
   fullscreen: false,
   tool: null,
-  replay: { active: false, cursor: 0, total: 0, playing: false, speed: 1, follow: true },
+  replay: { active: false, cursor: 0, knownUntil: null, total: 0, playing: false, speed: 1, follow: true },
   statusHint: '',
   fixtureMode: false,
 };

@@ -76,7 +76,10 @@ export class CandleSeries {
     return this.cols.len > 0 ? this.cols.t[this.cols.len - 1] : null;
   }
 
+  /** Time of bar `i`. Out-of-range reads — including bars beyond the replay
+   * barrier — return NaN rather than leaking a future timestamp. */
   time(i: number): number {
+    if (i < 0 || i >= this._limit) return NaN;
     return this.cols.t[i];
   }
   candle(i: number): { t: number; o: number; h: number; l: number; c: number; v: number; n: number } | null {
@@ -182,15 +185,17 @@ export function seriesFromArrays(
 export function aggregateSeries(base: CandleSeries, target: TimeframeId, tz = base.tz): CandleSeries {
   if (target === base.tf && tz === base.tz) return base;
   const src = base.cols;
-  if (src.len === 0) {
+  // Respect the replay barrier: aggregate the *allowed* rows only.
+  const n = Math.min(base.count, src.len);
+  if (n === 0) {
     return new CandleSeries({ symbol: base.symbol, tf: target, tz, cols: emptyColumns(0) });
   }
-  const capacity = Math.max(16, Math.ceil(src.len / bucketRatio(base.tf, target)) + 2);
+  const capacity = Math.max(16, Math.ceil(n / bucketRatio(base.tf, target)) + 2);
   const out = emptyColumns(capacity);
   const tf = timeframe(target);
   let w = 0;
   let i = 0;
-  while (i < src.len) {
+  while (i < n) {
     const start = floorToTimeframe(src.t[i], target, tz);
     let end = bucketEnd(start, target, tz);
     if (end <= start) end = start + (tf.ms ?? 1);
@@ -201,7 +206,7 @@ export function aggregateSeries(base: CandleSeries, target: TimeframeId, tz = ba
     let vol = 0;
     let cnt = 0;
     let j = i;
-    while (j < src.len && src.t[j] < end) {
+    while (j < n && src.t[j] < end) {
       if (Number.isNaN(o)) o = src.o[j];
       if (src.h[j] > hi) hi = src.h[j];
       if (src.l[j] < lo) lo = src.l[j];
