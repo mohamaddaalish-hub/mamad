@@ -12,7 +12,7 @@ import { formatDateTime } from '../../core/time/tz.ts';
 import { formatDuration } from '../../core/util/format.ts';
 import type { ResearchSnapshot } from '../../core/econ/service.ts';
 import { DEFAULT_STRATEGY, describeStrategy, runNewsBacktest, type DirectionRule, type NewsBacktestResult, type NewsStrategy } from '../../core/backtest/news.ts';
-import { DEFAULT_SPLIT, splitIssues, yearRange, type SplitConfig, type SplitName, type Stats } from '../../core/backtest/stats.ts';
+import { DEFAULT_SPLIT, splitIssues, yearRange, type SplitConfig, type SplitName, type Stats } from '../../core/backtest/newsStats.ts';
 import { buildGrid, optimize, DEFAULT_GRID, type GridAxes, type OptimizeHandle } from '../../core/backtest/optimize.ts';
 import { CURRENCIES } from '../../core/econ/types.ts';
 import { horizonStats, reactionCurve } from '../../core/econ/study.ts';

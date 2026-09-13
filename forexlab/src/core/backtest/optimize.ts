@@ -7,7 +7,7 @@
 import type { CandleSeries } from '../data/series.ts';
 import type { EnrichedEvent } from '../econ/study.ts';
 import { compactSeries, runNewsBacktest, seriesFromPayload, type NewsBacktestResult, type NewsStrategy, type SeriesPayload, describeStrategy } from './news.ts';
-import type { SplitConfig } from './stats.ts';
+import type { SplitConfig } from './newsStats.ts';
 
 export interface GridAxes {
   entryMinutes: number[];

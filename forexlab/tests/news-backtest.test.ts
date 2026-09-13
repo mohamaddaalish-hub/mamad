@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { simulateTrade, isFailure, type ExitRule } from '../src/core/backtest/trade.ts';
-import { computeStats, groupByPeriod, periodKey, splitIssues, splitOf, yearRange, DEFAULT_SPLIT } from '../src/core/backtest/stats.ts';
+import { simulateTrade, isFailure, type ExitRule } from '../src/core/backtest/newsTrade.ts';
+import { computeStats, groupByPeriod, periodKey, splitIssues, splitOf, yearRange, DEFAULT_SPLIT } from '../src/core/backtest/newsStats.ts';
 import { compactSeries, defaultSide, entryIndexFor, runNewsBacktest, seriesFromPayload, sideFor, DEFAULT_STRATEGY, type NewsStrategy } from '../src/core/backtest/news.ts';
 import { buildGrid, runGridSync, DEFAULT_GRID, type OptimizeRequest } from '../src/core/backtest/optimize.ts';
 import { EventIndex } from '../src/core/econ/surprise.ts';

@@ -16,8 +16,8 @@ import { emptyColumns } from '../data/types.ts';
 import { quoteDecimals } from '../econ/context.ts';
 import type { EnrichedEvent } from '../econ/study.ts';
 import { isOk } from '../econ/types.ts';
-import { computeStats, groupByPeriod, splitOf, type SplitConfig, type SplitName, type Stats } from './stats.ts';
-import { DEFAULT_COSTS, isFailure, simulateTrade, type AmbiguityPolicy, type Costs, type Side, type SimTrade } from './trade.ts';
+import { computeStats, groupByPeriod, splitOf, type SplitConfig, type SplitName, type Stats } from './newsStats.ts';
+import { DEFAULT_COSTS, isFailure, simulateTrade, type AmbiguityPolicy, type Costs, type Side, type SimTrade } from './newsTrade.ts';
 
 /** How a currency's positive surprise maps to a trade on the pair. */
 export type DirectionMode = 'buy' | 'sell' | 'opposite' | 'custom';
