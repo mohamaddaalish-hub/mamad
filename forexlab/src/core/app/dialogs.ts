@@ -7,7 +7,7 @@
 
 import { createStore, useSlice } from '../store/state.ts';
 
-export type DialogId = 'goto' | 'import' | 'shortcuts' | 'confirm';
+export type DialogId = 'goto' | 'import' | 'newsImport' | 'eventDetail' | 'shortcuts' | 'confirm';
 
 export interface DialogState {
   open: DialogId | null;

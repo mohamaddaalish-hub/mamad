@@ -22,6 +22,7 @@ import { overlayRegistry } from '../app/overlays.ts';
 import type { EconEvent } from './types.ts';
 import type { NewsImportSummary } from './csv.ts';
 import { EventIndex } from './surprise.ts';
+import { datasetRegistry } from '../data/datasets.ts';
 
 export interface NewsBatchRecord {
   id: string;
@@ -182,11 +183,16 @@ export function visibleEvent(id: string, until = knownUntil()): EconEvent | null
   return e;
 }
 
-/** The candle series consumers may analyse right now (gate-clipped). */
+/**
+ * The candle series consumers may analyse right now (gate-clipped). Prefers the
+ * dataset's native resolution so reactions are measured on the finest bars the
+ * user imported, independent of the timeframe currently displayed.
+ */
 export function analysisSeries() {
   const engine = chartHost.engine;
   if (!engine) return null;
-  const base = engine.getBaseSeries();
+  const id = appStore.get().datasetId;
+  const base = (id ? datasetRegistry.cachedBase(id) : null) ?? engine.getBaseSeries();
   if (!base) return null;
   const r = appStore.get().replay;
   if (!r.active || isAllKnown(r.knownUntil)) return base;

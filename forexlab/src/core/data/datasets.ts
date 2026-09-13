@@ -210,6 +210,11 @@ class DatasetRegistry {
     return loaded;
   }
 
+  /** Synchronous probe for the native-resolution series (already in memory once opened). */
+  cachedBase(id: string): CandleSeries | null {
+    return this.loaded.get(id)?.series ?? null;
+  }
+
   /** Synchronous cache probe: never triggers IndexedDB reads or aggregation. */
   cachedView(id: string, tf: TimeframeId, tz: string): Loaded | null {
     const hit = this.agg.get(`${id}|${tf}|${tz}`);
