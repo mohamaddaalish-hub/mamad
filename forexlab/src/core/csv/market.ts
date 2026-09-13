@@ -58,6 +58,8 @@ export interface ImportReport {
   minLow: number;
   maxHigh: number;
   volumeSeen: boolean;
+  /** Decimal places seen in the price columns — defines the pip size downstream. */
+  priceDecimals: number;
   invalid: InvalidRow[];
   notes: string[];
   durationMs: number;
@@ -65,6 +67,19 @@ export interface ImportReport {
   timeFormat: string | null;
   columnMap: Partial<Record<ColumnRole, number>>;
   header: string[];
+}
+
+/** Digits after the decimal separator in a raw price cell (never inferred from the value). */
+function decimalsIn(raw: string | undefined, sep: '.' | ',' | 'auto'): number {
+  if (!raw) return 0;
+  const text = raw.trim();
+  const dot = /[.,]/;
+  const idx = Math.max(text.lastIndexOf('.'), text.lastIndexOf(','));
+  if (idx < 0 || !dot.test(text[idx])) return 0;
+  const tail = text.slice(idx + 1);
+  if (!/^\d+$/.test(tail)) return 0;
+  void sep;
+  return Math.min(8, tail.length);
 }
 
 export interface MarketImportOptions {
@@ -160,6 +175,7 @@ export class MarketCsvBuilder {
   private ohlcViolations = 0;
   private unordered = 0;
   private volumeSeen = false;
+  private priceDecimals = 0;
   private dateFormat: string | null = null;
   private timeFormat: string | null = null;
   private invalid: InvalidRow[] = [];
@@ -249,6 +265,7 @@ export class MarketCsvBuilder {
     const volRaw = get('volume');
     const v = volRaw ? (parseNumber(volRaw, { decimalSeparator: dsep }) ?? 0) : 0;
     if (v > 0) this.volumeSeen = true;
+    this.priceDecimals = Math.max(this.priceDecimals, decimalsIn(get('close'), dsep));
     this.rows.push(when.instant, o, h, l, c, v);
   }
 
@@ -305,6 +322,7 @@ export class MarketCsvBuilder {
       minLow: Infinity,
       maxHigh: -Infinity,
       volumeSeen: this.volumeSeen,
+      priceDecimals: this.priceDecimals,
       invalid: this.invalid,
       notes,
       durationMs: Date.now() - this.startedAt,

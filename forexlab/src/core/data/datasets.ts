@@ -247,10 +247,27 @@ class DatasetRegistry {
     return total;
   }
 
+  /**
+   * Drop decoded series from RAM, keeping the records and their IndexedDB blobs.
+   * The next access re-reads; nothing is lost. Used to free memory after a long
+   * session and to keep the resident set bounded when many datasets are registered.
+   */
+  releaseMemory(id?: string): void {
+    if (id === undefined) {
+      this.loaded.clear();
+      this.agg.clear();
+      this.order = [];
+      this.emit();
+      return;
+    }
+    this.loaded.delete(id);
+    this.evictDerived(id);
+    this.order = this.order.filter((x) => x !== id);
+    this.emit();
+  }
+
   debugClearMemory(): void {
-    this.loaded.clear();
-    this.agg.clear();
-    this.order = [];
+    this.releaseMemory();
   }
 }
 

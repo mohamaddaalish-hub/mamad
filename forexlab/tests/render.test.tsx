@@ -33,6 +33,10 @@ const { syntheticCandles } = await import('../src/core/data/synthetic.ts');
 const { loadFixture, openDataset, registerImportedDataset, datasetRecordFromReport } = actions;
 const replay = await import('../src/core/replay/engine.ts');
 const gate = await import('../src/core/replay/gate.ts');
+const bt = await import('../src/core/backtest/store.ts');
+const btController = await import('../src/core/backtest/controller.ts');
+const btSession = await import('../src/core/backtest/session.ts');
+const modes = await import('../src/core/app/modes.ts');
 
 let root: Root | null = null;
 
@@ -110,6 +114,7 @@ describe('workstation shell', () => {
         minLow: 1.05,
         maxHigh: 1.12,
         volumeSeen: true,
+        priceDecimals: 5,
         invalid: [],
         notes: [],
         durationMs: 1,
@@ -626,5 +631,196 @@ describe('bar replay on the live chart', () => {
       key({ key: 'ArrowRight' });
     });
     expect(appStore.get().replay.active).toBe(before);
+  });
+});
+
+describe('manual backtest on the live chart', () => {
+  const fireTrade = (canvas: HTMLCanvasElement, type: string, init: Record<string, unknown> = {}): void => {
+    const Ctor = typeof PointerEvent !== 'undefined' ? PointerEvent : MouseEvent;
+    canvas.dispatchEvent(
+      new (Ctor as unknown as new (t: string, i: object) => Event)(type, { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, button: 0, ...init }),
+    );
+  };
+
+  async function freshTradeFixture(bars: number): Promise<void> {
+    await mount();
+    await act(async () => {
+      replay.barReplay.pause();
+      replay.barReplay.stop();
+      replay.barReplay.setStartIndex(null);
+      btController.tradeController.setArm(null);
+      bt.tradeLedger.clear();
+      await actions.openDataset(null);
+      await loadFixture(bars);
+      await actions.setTimeframe('5m');
+    });
+    await tick();
+  }
+
+  it('records a trade only on revealed bars and marks it at the cursor', async () => {
+    await freshTradeFixture(400);
+    const engine = actions.chartHost.engine!;
+    await act(async () => {
+      replay.barReplay.start(40);
+    });
+    expect(engine.getSeries()!.count).toBe(41);
+    let recorded: ReturnType<typeof bt.tradeLedger.open> = null;
+    await act(async () => {
+      // Bar 300 is far beyond the cursor: the ledger may not even see it.
+      recorded = bt.tradeLedger.open({ side: 'buy', bar: 300, price: NaN, stop: null, target: null, size: 10_000 });
+    });
+    expect(recorded).not.toBeNull();
+    expect(recorded!.entryBar).toBe(40);
+    const [result] = bt.tradeLedger.results();
+    expect(result.entry?.index).toBe(40);
+    expect(result.status).toBe('open');
+    expect(result.markedAt?.index).toBe(40);
+    // Reveal ten more bars: the mark and the excursion follow the cursor, nothing more.
+    await act(async () => {
+      replay.barReplay.step(10);
+    });
+    const [after] = bt.tradeLedger.results();
+    expect(after.markedAt?.index).toBe(50);
+    expect(after.barsHeld).toBe(10);
+    // Close on the cursor, then exit replay: the trade must not have used bar 51+.
+    await act(async () => {
+      btController.tradeController.closeOldest();
+    });
+    const [closed] = bt.tradeLedger.results();
+    expect(closed.status).toBe('closed');
+    expect(closed.exit?.index).toBe(50);
+    await act(async () => {
+      replay.barReplay.stop();
+    });
+    expect(bt.tradeLedger.results()[0].exit?.index).toBe(50);
+    expect(engine.getSeries()!.count).toBe(400);
+  });
+
+  it('places an entry from a chart click while armed and disarms on Escape', async () => {
+    await freshTradeFixture(300);
+    await act(async () => {
+      replay.barReplay.start(10);
+    });
+    const canvas = document.querySelector('canvas')!;
+    await act(async () => {
+      // A leftover drawing tool must release when a trade tool is armed.
+      draw.drawingController.setTool('hline');
+      modes.armTrade({ mode: 'open', side: 'buy', kind: 'market' });
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    expect(btController.tradeController.isArmed()).toBe(true);
+    expect(appStore.get().tool).toBeNull();
+    const before = bt.tradeLedger.count();
+    // Derive the click from the view so it lands on a real revealed bar.
+    const engine = actions.chartHost.engine!;
+    const clickX = Math.round(engine.view.indexToX(5));
+    const clickY = Math.round((engine.geom.plotTop + engine.geom.plotBottom) / 2);
+    await act(async () => {
+      fireTrade(canvas, 'pointermove', { clientX: clickX, clientY: clickY });
+      fireTrade(canvas, 'pointerdown', { clientX: clickX, clientY: clickY });
+      fireTrade(canvas, 'pointerup', { clientX: clickX, clientY: clickY });
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(bt.tradeLedger.count()).toBeGreaterThan(before);
+    expect(btController.tradeController.isArmed()).toBe(false);
+    const trade = bt.tradeLedger.all()[0];
+    expect(trade.side).toBe('buy');
+    // The click could only land on a revealed bar.
+    expect(trade.entryBar).toBeLessThanOrEqual(10);
+    expect(appStore.get().replay.active).toBe(true);
+    // Escape first disarms an armed tool, then exits replay.
+    await act(async () => {
+      modes.armTrade({ mode: 'open', side: 'sell', kind: 'limit' });
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(btController.tradeController.isArmed()).toBe(false);
+    expect(appStore.get().replay.active).toBe(true);
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(appStore.get().replay.active).toBe(false);
+  });
+
+  it('paints positions and reports them in the panel', async () => {
+    await freshTradeFixture(200);
+    await act(async () => {
+      appStore.set({ rightOpen: true, panel: 'backtest' });
+    });
+    expect(document.body.textContent).toMatch(/Net P&L/);
+    expect(document.body.textContent).toMatch(/UNAVAILABLE/);
+    expect(document.body.textContent).toMatch(/No trades recorded/);
+    await act(async () => {
+      bt.tradeLedger.open({ side: 'buy', bar: 5, price: NaN, stop: null, target: null, size: 10_000 });
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(document.body.textContent).toMatch(/1 closed|Open and pending|BUY/);
+    resetCanvasOps();
+    await act(async () => {
+      actions.chartHost.engine!.requestRender();
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    const texts = canvasOps()
+      .filter((op) => op.op === 'fillText')
+      .map((op) => String(op.args[0]));
+    expect(texts.join(' |')).toMatch(/floating|BUY/);
+  });
+
+  it('saves and reloads a session through local storage', async () => {
+    await freshTradeFixture(200);
+    await act(async () => {
+      bt.backtestStore.set({ sessionName: 'Live test session' });
+      bt.tradeLedger.open({ side: 'sell', bar: 3, price: NaN, stop: 1.5, target: 1.0, size: 5_000, note: 'kept' });
+      await btController.tradeController.cancel();
+    });
+    const before = bt.tradeLedger.all()[0];
+    expect(before).toBeTruthy();
+    let id: string | null = null;
+    await act(async () => {
+      id = await btSession.saveSession('Live test session');
+    });
+    expect(id).toBeTruthy();
+    await act(async () => {
+      bt.tradeLedger.clear();
+      await btSession.loadSession(id!);
+    });
+    expect(bt.tradeLedger.count()).toBe(1);
+    const restored = bt.tradeLedger.all()[0];
+    expect(restored.id).toBe(before.id);
+    expect(restored.note).toBe('kept');
+    expect(restored.entryBar).toBe(3);
+    const list = await btSession.listSessions();
+    expect(list.some((s) => s.id === id)).toBe(true);
+    await act(async () => {
+      await btSession.deleteSession(id!);
+    });
+    expect(bt.tradeLedger.count()).toBe(0);
+    const after = await btSession.listSessions();
+    expect(after.some((s) => s.id === id)).toBe(false);
+  });
+
+  it('undo and redo walk the trade history', async () => {
+    await freshTradeFixture(200);
+    await act(async () => {
+      bt.tradeLedger.clear();
+      bt.tradeLedger.open({ side: 'buy', bar: 1, price: NaN, size: 1_000 });
+      bt.tradeLedger.open({ side: 'sell', bar: 2, price: NaN, size: 1_000 });
+    });
+    expect(bt.tradeLedger.count()).toBe(2);
+    await act(async () => {
+      bt.tradeLedger.undo();
+    });
+    expect(bt.tradeLedger.count()).toBe(1);
+    await act(async () => {
+      bt.tradeLedger.undo();
+    });
+    expect(bt.tradeLedger.count()).toBe(0);
+    await act(async () => {
+      bt.tradeLedger.redo();
+    });
+    expect(bt.tradeLedger.count()).toBe(1);
+    expect(bt.tradeLedger.all()[0].side).toBe('buy');
+    await act(async () => {
+      bt.tradeLedger.clear();
+    });
   });
 });
