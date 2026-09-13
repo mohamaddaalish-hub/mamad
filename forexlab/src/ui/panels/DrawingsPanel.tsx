@@ -12,7 +12,11 @@ import { useDrawings } from '../../core/draw/hooks.ts';
 import { TOOL_BY_KIND, type Drawing } from '../../core/draw/model.ts';
 import { formatDate } from '../../core/time/tz.ts';
 import { cx } from '../../core/util/format.ts';
-import { useApp } from '../../core/app/state.ts';
+import { appStore, useApp } from '../../core/app/state.ts';
+import { newsStore, useNews } from '../../core/econ/store.ts';
+import { useResearch } from '../../core/econ/service.ts';
+import { filterStore } from '../../core/econ/filters.ts';
+import { Check } from '../kit.tsx';
 
 export function DrawingsPanel(): React.ReactElement {
   const { list, selection } = useDrawings();
@@ -215,6 +219,8 @@ export function DrawingsPanel(): React.ReactElement {
         )}
       </Section>
 
+      <NewsObjects />
+
       <Section title="History">
         <div className="row" style={{ gap: 4 }}>
           <Btn size="xs" icon="undo" tip="Undo (Ctrl/⌘ + Z)" onClick={() => drawingController.undo()} disabled={!drawingStore.canUndo}>
@@ -242,4 +248,34 @@ function describe(d: Drawing, tz: string): string {
   if (d.kind === 'vline') return time;
   const last = d.anchors[d.anchors.length - 1];
   return `${time} → ${formatDate(last.t, tz)} · ${price}${d.anchors.length > 2 ? ` → ${last.p.toFixed(5)}` : ''}`;
+}
+
+/** Objects Manager extension: news markers are chart objects too — show/hide, per-event hide, restore. */
+function NewsObjects(): React.ReactElement {
+  const showOnChart = useNews((s) => s.showOnChart);
+  const hiddenIds = useNews((s) => s.hiddenIds);
+  const research = useResearch();
+  const hiddenEvents = hiddenIds.filter((id) => !id.startsWith('cmp:')).length;
+  const filtered = research.filtered.length;
+  return (
+    <Section
+      title="News markers"
+      right={
+        <Chip title="Events currently matching the news filter and known at the replay position">{filtered}</Chip>
+      }
+    >
+      <Check checked={showOnChart} onChange={(v) => newsStore.set({ showOnChart: v })} label="Show news markers on the chart" />
+      <div className="row wrap" style={{ gap: 4, marginTop: 6 }}>
+        <Btn size="xs" onClick={() => { appStore.set({ panel: 'news', rightOpen: true }); filterStore.set({ drawerOpen: true }); }} tip="Markers follow the News filter">
+          Edit filter…
+        </Btn>
+        <Btn size="xs" disabled={hiddenEvents === 0} onClick={() => newsStore.set((s) => ({ hiddenIds: s.hiddenIds.filter((id) => id.startsWith('cmp:')) }))} tip="Restore individually hidden events">
+          Restore {hiddenEvents} hidden
+        </Btn>
+      </div>
+      <div className="note small dim" style={{ marginTop: 6 }}>
+        Markers are drawn for the visible range only and never for releases after the replay position. Hide single events from their detail view.
+      </div>
+    </Section>
+  );
 }

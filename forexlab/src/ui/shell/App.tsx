@@ -15,6 +15,8 @@ import { closeDialog, useDialog } from '../../core/app/dialogs.ts';
 import { ImportDialog } from '../panels/ImportDialog.tsx';
 import { GoToDateDialog } from '../panels/GoToDate.tsx';
 import { ShortcutsDialog } from '../panels/ShortcutsDialog.tsx';
+import { NewsImportDialog } from '../news/NewsImportDialog.tsx';
+import { EventDetailDialog } from '../news/EventDetail.tsx';
 
 export function App(): React.ReactElement {
   const leftOpen = useApp((s) => s.leftOpen);
@@ -58,6 +60,8 @@ export function App(): React.ReactElement {
       {dialog === 'goto' ? <GoToDateDialog onClose={closeDialog} /> : null}
       {dialog === 'shortcuts' ? <ShortcutsDialog /> : null}
       {dialog === 'import' ? <ImportDialog /> : null}
+      {dialog === 'newsImport' ? <NewsImportDialog /> : null}
+      {dialog === 'eventDetail' ? <EventDetailDialog /> : null}
     </div>
   );
 }
