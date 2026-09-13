@@ -1,0 +1,20 @@
+# Workspace / repository hygiene — GitHub is the source of truth, keep it lean.
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local
+
+# Never commit real market/news datasets or large exports.
+# Automated tests use small synthetic fixtures generated in-repo.
+/data/
+*.csv
+!forexlab/tests/fixtures/*.csv
+*.parquet
+*.sqlite
